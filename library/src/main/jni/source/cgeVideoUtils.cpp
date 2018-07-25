@@ -22,10 +22,10 @@
 extern "C"
 {
     JNIEXPORT jboolean JNICALL Java_org_wysaid_nativePort_CGEFFmpegNativeLibrary_nativeGenerateVideoWithFilter(JNIEnv *env, jclass cls, jstring outputFilename, jstring inputFilename, jstring filterConfig, jfloat filterIntensity, jobject blendImage, jint blendMode, jfloat blendIntensity, jboolean mute){
-	return Java_org_wysaid_nativePort_CGEFFmpegNativeLibrary_nativeGenerateVideoWithFilterMulti(env, cls, outputFilename, inputFilename, filterConfig, filterIntensity, blendImage, blendMode, blendIntensity, 0, 0.0f, 0, 0.0f, mute);
+	return Java_org_wysaid_nativePort_CGEFFmpegNativeLibrary_nativeGenerateVideoWithFilterMulti(env, cls, outputFilename, inputFilename, filterConfig, filterIntensity, blendImage, blendImage, blendMode, blendIntensity, 0, 0.0f, 0, 0.0f, mute);
     }
 
-    JNIEXPORT jboolean JNICALL Java_org_wysaid_nativePort_CGEFFmpegNativeLibrary_nativeGenerateVideoWithFilterMulti(JNIEnv *env, jclass cls, jstring outputFilename, jstring inputFilename, jstring filterConfig, jfloat filterIntensity, jobject blendImage, jint blendMode, jfloat blendIntensity, jint blendMode2, jfloat blendIntensity2, jint blendMode3, jfloat blendIntensity3, jboolean mute)
+    JNIEXPORT jboolean JNICALL Java_org_wysaid_nativePort_CGEFFmpegNativeLibrary_nativeGenerateVideoWithFilterMulti(JNIEnv *env, jclass cls, jstring outputFilename, jstring inputFilename, jstring filterConfig, jfloat filterIntensity, jobject blendImage, jobject blendImage2, jint blendMode, jfloat blendIntensity, jint blendMode2, jfloat blendIntensity2, jint blendMode3, jfloat blendIntensity3, jboolean mute)
     {
         CGE_LOG_INFO("##### nativeGenerateVideoWithFilter!!!");
         
@@ -43,11 +43,14 @@ extern "C"
         glContext->makecurrent();
         
         CGETextureResult texResult = {0};
+        CGETextureResult texResult2 = {0};
         
         jclass nativeLibraryClass = env->FindClass("org/wysaid/nativePort/CGENativeLibrary");
         
         if(blendImage != nullptr)
             texResult = cgeLoadTexFromBitmap_JNI(env, nativeLibraryClass, blendImage);
+        if(blendImage2 != nullptr)
+                    texResult2 = cgeLoadTexFromBitmap_JNI(env, nativeLibraryClass, blendImage2);
         
         const char* outFilenameStr = env->GetStringUTFChars(outputFilename, 0);
         const char* inFilenameStr = env->GetStringUTFChars(inputFilename, 0);
@@ -57,7 +60,7 @@ extern "C"
         texLoadArg.env = env;
         texLoadArg.cls = env->FindClass("org/wysaid/nativePort/CGENativeLibrary");
         
-        bool retStatus = CGE::cgeGenerateVideoWithFilterMulti(outFilenameStr, inFilenameStr, configStr, filterIntensity, texResult.texID, (CGETextureBlendMode)blendMode, blendIntensity, (CGETextureBlendMode)blendMode2, blendIntensity2, (CGETextureBlendMode)blendMode3, blendIntensity3, mute, &texLoadArg);
+        bool retStatus = CGE::cgeGenerateVideoWithFilterMulti(outFilenameStr, inFilenameStr, configStr, filterIntensity, texResult.texID, texResult2.texID, (CGETextureBlendMode)blendMode, blendIntensity, (CGETextureBlendMode)blendMode2, blendIntensity2, (CGETextureBlendMode)blendMode3, blendIntensity3, mute, &texLoadArg);
         
         env->ReleaseStringUTFChars(outputFilename, outFilenameStr);
         env->ReleaseStringUTFChars(inputFilename, inFilenameStr);
@@ -117,12 +120,12 @@ namespace CGE
 
     bool cgeGenerateVideoWithFilter     (const char* outputFilename, const char* inputFilename, const char* filterConfig, float filterIntensity, GLuint texID, CGETextureBlendMode blendMode, float blendIntensity, bool mute, CGETexLoadArg* loadArg)
     {
-        return cgeGenerateVideoWithFilterMulti(outputFilename, inputFilename, filterConfig, filterIntensity, texID, blendMode, blendIntensity, (CGETextureBlendMode)0, 0.0, (CGETextureBlendMode)0, 0.0, mute, loadArg);
+        return cgeGenerateVideoWithFilterMulti(outputFilename, inputFilename, filterConfig, filterIntensity, texID, texID, blendMode, blendIntensity, (CGETextureBlendMode)0, 0.0, (CGETextureBlendMode)0, 0.0, mute, loadArg);
     }
 
     
     // A simple-slow offscreen video rendering function.
-    bool cgeGenerateVideoWithFilterMulti(const char* outputFilename, const char* inputFilename, const char* filterConfig, float filterIntensity, GLuint texID, CGETextureBlendMode blendMode, float blendIntensity, CGETextureBlendMode blendMode2, float blendIntensity2, CGETextureBlendMode blendMode3, float blendIntensity3, bool mute, CGETexLoadArg* loadArg)
+    bool cgeGenerateVideoWithFilterMulti(const char* outputFilename, const char* inputFilename, const char* filterConfig, float filterIntensity, GLuint texID, GLuint texID2, CGETextureBlendMode blendMode, float blendIntensity, CGETextureBlendMode blendMode2, float blendIntensity2, CGETextureBlendMode blendMode3, float blendIntensity3, bool mute, CGETexLoadArg* loadArg)
     {
         static const int ENCODE_FPS = 30;
         
@@ -244,6 +247,10 @@ namespace CGE
             }
         }
 
+        if(texID2 == 0){
+          texID2 = texID;
+        }
+
 
         
         bool hasFilter = blendFilter != nullptr || (filterConfig != nullptr && *filterConfig != '\0' && filterIntensity != 0.0f);
@@ -320,42 +327,40 @@ namespace CGE
                     CGE_LOG_ERROR("drop frame...\n");
                     continue;
                 }
-CGE_LOG_INFO("debug 1");
                 if(hasFilter)
                 {
-CGE_LOG_INFO("debug 2");
 		    if(blendFilter2 != nullptr && blendFilter3 != nullptr){
+		    if((newPTS/15) %2 == 0){
+		    blendFilter3->setSamplerID(texID, false);
+		    blendFilter2->setSamplerID(texID, false);
+		    blendFilter->setSamplerID(texID, false);
+		    }else{
+		      blendFilter3->setSamplerID(texID2, false);
+              		    blendFilter2->setSamplerID(texID2, false);
+              		    blendFilter->setSamplerID(texID2, false);
+		    }
 //			handler.popImageFilter();
 			handler.deleteFilterByIndex(0, false);
-			CGE_LOG_INFO(">>>> filters %zu", handler.peekFilters().size());
 			if((newPTS/10) % 3 == 0){
-CGE_LOG_INFO("debug 30");
-				handler.addImageFilter(blendFilter2);		
+				handler.addImageFilter(blendFilter2);
 			}else if((newPTS/10) % 3 == 1){
-CGE_LOG_INFO("debug 31");
 				handler.addImageFilter(blendFilter3);
 			}else{
-CGE_LOG_INFO("debug 32");
 				handler.addImageFilter(blendFilter);
 			}
 		    }
-CGE_LOG_INFO("debug 4");
                     handler.setAsTarget();
                     glViewport(0, 0, videoPlayer.getLinesize(), videoHeight);
                     videoPlayer.render();
-CGE_LOG_INFO("debug 5");
                     handler.processingFilters();
                     
 #if USE_GPU_I420_ENCODING
-CGE_LOG_INFO("debug 6");
                     glBindFramebuffer(GL_FRAMEBUFFER, 0);
                     glViewport(0, 0, videoWidth, videoHeight * 3 / 8);
                     gpuEncoder->drawTexture(handler.getTargetTextureID());
                     glFinish();
-CGE_LOG_INFO("debug 7");
 
                     glReadPixels(0, 0, videoWidth, videoHeight * 3 / 8, GL_RGBA, GL_UNSIGNED_BYTE, cacheBuffer);
-CGE_LOG_INFO("debug 8");
 
 #elif 1 //Maybe faster than calling 'handler.getOutputBufferData'
 
@@ -363,18 +368,15 @@ CGE_LOG_INFO("debug 8");
                     glViewport(0, 0, videoWidth, videoHeight);
                     handler.drawResult();
                     glFinish();
-CGE_LOG_INFO("debug 9");
-                    
+
                     glReadPixels(0, 0, videoWidth, videoHeight, GL_RGBA, GL_UNSIGNED_BYTE, cacheBuffer);
-CGE_LOG_INFO("debug 10");
 #else
                     
                     handler.getOutputBufferData(cacheBuffer, CGE_FORMAT_RGBA_INT8);
 #endif
 
                     imageData.pts = videoPTS;
-CGE_LOG_INFO("debug 11");
-                    
+
                     if(!mp4Encoder.record(imageData))
                     {
                         CGE_LOG_ERROR("record frame failed!");

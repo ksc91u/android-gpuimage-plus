@@ -80,6 +80,7 @@ public class TestCaseActivity extends AppCompatActivity {
                 }
 
                 Bitmap bmp;
+                Bitmap bmp2;
 
                 try {
                     AssetManager am = getAssets();
@@ -89,9 +90,16 @@ public class TestCaseActivity extends AppCompatActivity {
 
                     bmp = BitmapFactory.decodeStream(is);
 
+                    InputStream is2;
+
+                    is2 = am.open("logo2.png");
+
+                    bmp2 = BitmapFactory.decodeStream(is2);
+
                 } catch (IOException e) {
                     Log.e(LOG_TAG, "Can not open blend image file!");
                     bmp = null;
+                    bmp2 = null;
                 }
 
                 //bmp is used for watermark, (just pass null if you don't want that)
@@ -99,8 +107,9 @@ public class TestCaseActivity extends AppCompatActivity {
                 CGEFFmpegNativeLibrary.generateVideoWithFilterMulti(
                         outputFilename, inputFileName, "@adjust lut late_sunset.png", 1.0f,
                         bmp,
+                        bmp2,
                         CGENativeLibrary.TextureBlendMode.CGE_BLEND_ADDREV, 1.0f,
-                        CGENativeLibrary.TextureBlendMode.CGE_BLEND_COLOR, 1.0f,
+                        CGENativeLibrary.TextureBlendMode.CGE_BLEND_ADDREV, 1.0f,
                         CGENativeLibrary.TextureBlendMode.CGE_BLEND_HUE, 1.0f,
                         false);
 
